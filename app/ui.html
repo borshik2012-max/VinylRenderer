@@ -1,0 +1,703 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vinyl Visualizer</title>
+<style>
+  :root {
+    --bg: #0e1014;
+    --panel: #161920;
+    --panel-2: #1c2029;
+    --line: #262b36;
+    --text: #e8eaf0;
+    --muted: #8a92a6;
+    --accent: #3d9bff;
+    --accent-2: #2a7fe0;
+    --ok: #3ccf91;
+    --warn: #ffb547;
+    --err: #ff6161;
+    --r: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.4 "Segoe UI", system-ui, -apple-system, sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  header .logo { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 16px; letter-spacing: .2px; }
+  header .logo svg { width: 26px; height: 26px; }
+  header .badge { margin-left: auto; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  header .dot.ok { background: var(--ok); }
+  header .dot.warn { background: var(--warn); }
+
+  main { flex: 1; display: flex; min-height: 0; }
+  aside {
+    width: 390px; flex: none; overflow-y: auto; border-right: 1px solid var(--line);
+    background: var(--panel); padding: 6px 0 40px;
+  }
+  aside::-webkit-scrollbar, .fontlist::-webkit-scrollbar { width: 10px; }
+  aside::-webkit-scrollbar-thumb { background: #2a303c; border-radius: 10px; border: 2px solid var(--panel); }
+
+  details { border-bottom: 1px solid var(--line); }
+  summary {
+    list-style: none; cursor: pointer; padding: 13px 18px; font-weight: 600; font-size: 13px;
+    text-transform: uppercase; letter-spacing: .6px; color: #c9cedb; display: flex; align-items: center; gap: 8px;
+    user-select: none;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: ""; margin-left: auto; width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; }
+  details[open] summary::after { transform: rotate(45deg); }
+  .sec { padding: 0 18px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  .row { display: flex; align-items: center; gap: 10px; }
+  .row > label, .lbl { color: var(--muted); font-size: 13px; }
+  .row > label { width: 118px; flex: none; }
+  .row .grow { flex: 1; min-width: 0; }
+  .val { width: 44px; text-align: right; font-variant-numeric: tabular-nums; color: #c9cedb; font-size: 12px; flex: none; }
+
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=text], textarea, select {
+    width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; font: inherit; outline: none;
+  }
+  textarea { resize: vertical; min-height: 54px; }
+  input[type=text]:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  input[type=color] {
+    width: 38px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: none; cursor: pointer; flex: none;
+  }
+  input[type=color]::-webkit-color-swatch-wrapper { padding: 3px; }
+  input[type=color]::-webkit-color-swatch { border: none; border-radius: 4px; }
+  .hex { font-family: Consolas, monospace; font-size: 12px; color: var(--muted); }
+
+  button {
+    font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 12px; cursor: pointer; transition: background .12s, border-color .12s;
+  }
+  button:hover { background: #232836; border-color: #333a49; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover { background: var(--accent-2); }
+  button.danger { color: #ffb4b4; }
+
+  .seg { display: flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 2px; gap: 2px; width: 100%; }
+  .seg button { flex: 1; border: none; background: none; padding: 6px 4px; border-radius: 6px; color: var(--muted); font-size: 13px; }
+  .seg button.on { background: #2b3242; color: var(--text); }
+
+  .file {
+    display: flex; align-items: center; gap: 10px; padding: 9px; border: 1px dashed #333a49; border-radius: var(--r);
+    background: var(--panel-2); cursor: pointer;
+  }
+  .file:hover { border-color: var(--accent); }
+  .file .ico { width: 44px; height: 44px; border-radius: 7px; background: #232836; flex: none; display: grid; place-items: center; overflow: hidden; }
+  .file .ico img { width: 100%; height: 100%; object-fit: cover; }
+  .file .ico svg { width: 22px; height: 22px; color: var(--muted); }
+  .file .meta { min-width: 0; flex: 1; }
+  .file .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+  .file .sub { color: var(--muted); font-size: 12px; }
+  .file .x { border: none; background: none; color: var(--muted); padding: 4px 6px; }
+
+  .note { font-size: 12px; color: var(--muted); }
+  .note.warn { color: var(--warn); }
+  .check { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text); }
+  .check input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+  .presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .preset {
+    aspect-ratio: 16/9; border-radius: 7px; border: 2px solid transparent; cursor: pointer; position: relative; padding: 0;
+    overflow: hidden;
+  }
+  .preset:hover { border-color: #fff6; }
+  .preset span { position: absolute; left: 5px; bottom: 3px; font-size: 10px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px #000a; }
+  .preset i { position: absolute; right: 6px; top: 50%; translate: 0 -50%; width: 11px; height: 11px; border-radius: 50%; border: 3px solid; background: #111; }
+
+  .fontbox { display: flex; flex-direction: column; gap: 6px; }
+  .fontlist { height: 128px; }
+
+  .mypresets { display: flex; flex-direction: column; gap: 6px; }
+  .mypresets .item { display: flex; gap: 6px; align-items: center; }
+  .mypresets .item button:first-child { flex: 1; text-align: left; }
+
+  /* right side */
+  .stage { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 18px 22px; gap: 12px; overflow: auto; }
+  .preview {
+    position: relative; width: 100%; max-width: calc((100vh - 270px) * 16 / 9); margin: 0 auto; aspect-ratio: 16/9;
+    background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 40px #0008; flex: none;
+  }
+  .preview img { width: 100%; height: 100%; display: block; }
+  .preview .busy {
+    position: absolute; right: 12px; top: 12px; background: #000a; color: #fff; font-size: 12px; padding: 4px 10px;
+    border-radius: 20px; opacity: 0; transition: opacity .15s;
+  }
+  .preview .busy.on { opacity: 1; }
+  .scrub { width: 100%; max-width: calc((100vh - 270px) * 16 / 9); margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+  .scrub .t { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; width: 120px; text-align: right; }
+  .warnings { width: 100%; max-width: calc((100vh - 270px) * 16 / 9); margin: 0 auto; display: flex; flex-direction: column; gap: 4px; }
+
+  .actions {
+    width: 100%; max-width: calc((100vh - 270px) * 16 / 9); margin: 0 auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .actions .top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .actions .out { flex: 1; min-width: 200px; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .actions .out b { color: var(--text); font-weight: 500; }
+  .actions .est { color: var(--muted); font-size: 12px; }
+  .bar { height: 8px; background: var(--panel-2); border-radius: 8px; overflow: hidden; }
+  .bar div { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), #6fd3ff); transition: width .3s; }
+  .prog { display: none; flex-direction: column; gap: 8px; }
+  .prog.on { display: flex; }
+  .prog .line { display: flex; gap: 14px; font-size: 13px; color: var(--muted); flex-wrap: wrap; align-items: center; }
+  .prog .line b { color: var(--text); font-weight: 600; }
+  .prog .line .sp { margin-left: auto; display: flex; gap: 8px; }
+
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 14px; width: min(1100px, 92vw); }
+  dialog::backdrop { background: #000b; }
+  dialog video { width: 100%; border-radius: 8px; background: #000; display: block; }
+  dialog .row { margin-top: 10px; justify-content: flex-end; }
+  @media (max-width: 900px) {
+    main { flex-direction: column; overflow: auto; }
+    aside { width: 100%; border-right: none; overflow: visible; }
+    body { overflow: auto; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" fill="#1b1f27" stroke="#3d9bff" stroke-width="2"/><circle cx="16" cy="16" r="5" fill="#3d9bff"/><circle cx="16" cy="16" r="1.5" fill="#0e1014"/><path d="M16 5a11 11 0 0 1 11 11" stroke="#ffffff40" stroke-width="1.5"/></svg>
+    Vinyl Visualizer
+  </div>
+  <div class="badge"><span class="dot" id="encDot"></span><span id="encText">Проверяю видеокарту…</span></div>
+</header>
+
+<main>
+<aside id="side">
+  <details open>
+    <summary>Музыка и обложка</summary>
+    <div class="sec">
+      <div class="file" data-pick="audio" data-key="audio">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+        <div class="meta"><div class="name" id="audioName">Выбрать аудио…</div><div class="sub" id="audioSub">mp3, wav, flac, m4a…</div></div>
+      </div>
+      <div class="file" data-pick="image" data-key="cover">
+        <div class="ico" id="coverIco"></div>
+        <div class="meta"><div class="name" id="coverName">Обложка 1:1</div><div class="sub">Будет и на конверте, и в центре пластинки</div></div>
+      </div>
+    </div>
+  </details>
+
+  <details open>
+    <summary>Текст</summary>
+    <div class="sec">
+      <textarea data-key="title" rows="2" placeholder="Artist Name - Song Name"></textarea>
+      <div class="note warn" id="titleWarn" hidden></div>
+      <div class="fontbox" data-font="title_font">
+        <div class="row"><input type="text" class="grow ffilter" placeholder="Поиск шрифта…"><button class="ffile" title="Выбрать файл шрифта">Файл…</button></div>
+        <select class="fontlist" size="6"></select>
+      </div>
+      <div class="row"><label>Размер</label><input class="grow" type="range" data-key="title_size" min="12" max="110" step="1"><span class="val"></span></div>
+      <div class="row"><label>Цвет</label><input type="color" data-key="title_color"><span class="hex"></span></div>
+      <div class="row"><label>Тень</label><input class="grow" type="range" data-key="title_shadow" min="0" max="1" step="0.05"><span class="val"></span></div>
+      <div class="row"><label>Сдвиг по высоте</label><input class="grow" type="range" data-key="title_offset" min="-280" max="280" step="2"><span class="val"></span></div>
+    </div>
+  </details>
+
+  <details open>
+    <summary>Фон</summary>
+    <div class="sec">
+      <div class="seg" data-seg="bg_mode">
+        <button data-v="gradient">Градиент</button><button data-v="image">Картинка 16:9</button><button data-v="cover">Из обложки</button>
+      </div>
+      <div class="mode-gradient sec" style="padding:0">
+        <div class="seg" data-seg="bg_style"><button data-v="linear">Сверху вниз</button><button data-v="radial">Свечение сверху</button></div>
+        <div class="row"><label>Цвет сверху</label><input type="color" data-key="bg_top"><span class="hex"></span>
+          <button id="swapBg" style="margin-left:auto" title="Поменять цвета местами">⇅</button></div>
+        <div class="row"><label>Цвет снизу</label><input type="color" data-key="bg_bottom"><span class="hex"></span></div>
+      </div>
+      <div class="mode-image sec" style="padding:0">
+        <div class="file" data-pick="image" data-key="bg_image">
+          <div class="ico" id="bgIco"></div>
+          <div class="meta"><div class="name" id="bgName">Выбрать картинку…</div><div class="sub">Лучше 16:9, будет обрезана по размеру кадра</div></div>
+        </div>
+      </div>
+      <div class="mode-img-common sec" style="padding:0">
+        <div class="row"><label>Размытие</label><input class="grow" type="range" data-key="bg_blur" min="0" max="80" step="1"><span class="val"></span></div>
+        <div class="row"><label>Затемнение</label><input class="grow" type="range" data-key="bg_darken" min="0" max="0.9" step="0.05"><span class="val"></span></div>
+      </div>
+      <div class="row"><label>Виньетка</label><input class="grow" type="range" data-key="vignette" min="0" max="0.9" step="0.05"><span class="val"></span></div>
+      <div class="row"><label>Зерно</label><input class="grow" type="range" data-key="grain" min="0" max="1" step="0.05"><span class="val"></span></div>
+      <div class="note">Зерно на скорость почти не влияет, но делает файл тяжелее (до ×3).</div>
+    </div>
+  </details>
+
+  <details open>
+    <summary>Цвета и темы</summary>
+    <div class="sec">
+      <div class="presets" id="presets"></div>
+      <div class="row"><label>Акцент</label><input type="color" data-key="accent"><span class="hex"></span><span class="note">прогресс и таймер</span></div>
+      <div class="row"><label>Полоса</label><input type="color" data-key="track_color"><input class="grow" type="range" data-key="track_opacity" min="0" max="1" step="0.05"><span class="val"></span></div>
+      <div class="row"><label>Волна</label><input type="color" data-key="wave_color"><input class="grow" type="range" data-key="wave_opacity" min="0.1" max="1" step="0.05"><span class="val"></span></div>
+      <div class="row"><label>Кольцо пластинки</label><input type="color" data-key="ring_color"><span class="hex"></span></div>
+      <div class="row"><label>Винил</label><input type="color" data-key="disc_color"><span class="hex"></span></div>
+    </div>
+  </details>
+
+  <details>
+    <summary>Пластинка</summary>
+    <div class="sec">
+      <div class="row"><label>Скорость, об/мин</label><input class="grow" type="range" data-key="rpm" min="0" max="33" step="0.5"><span class="val"></span></div>
+      <div class="seg" data-seg="spin_dir"><button data-v="1">По часовой</button><button data-v="-1">Против часовой</button></div>
+      <div class="row"><label>Блик на виниле</label><input class="grow" type="range" data-key="disc_sheen" min="0" max="1.5" step="0.05"><span class="val"></span></div>
+      <div class="row"><label>Тень под ней</label><input class="grow" type="range" data-key="shadow" min="0" max="1" step="0.05"><span class="val"></span></div>
+      <label class="check"><input type="checkbox" data-key="sticker"> Наклейка на обложке</label>
+      <div class="file" data-pick="image" data-key="sticker_path">
+        <div class="ico" id="stickerIco"></div>
+        <div class="meta"><div class="name" id="stickerName">Наклейка</div><div class="sub">PNG с прозрачностью, левый нижний угол</div></div>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>Волна</summary>
+    <div class="sec">
+      <div class="row"><label>Количество точек</label><input class="grow" type="range" data-key="wave_bars" min="32" max="160" step="1"><span class="val"></span></div>
+      <div class="row"><label>Высота</label><input class="grow" type="range" data-key="wave_height" min="16" max="160" step="1"><span class="val"></span></div>
+      <div class="row"><label>Чувствительность</label><input class="grow" type="range" data-key="wave_sens" min="0.3" max="2.5" step="0.05"><span class="val"></span></div>
+      <div class="row"><label>Плавность</label><input class="grow" type="range" data-key="wave_smooth" min="0" max="0.92" step="0.02"><span class="val"></span></div>
+    </div>
+  </details>
+
+  <details>
+    <summary>Таймер</summary>
+    <div class="sec">
+      <div class="note warn" id="timerWarn" hidden></div>
+      <div class="fontbox" data-font="timer_font">
+        <div class="row"><input type="text" class="grow ffilter" placeholder="Поиск шрифта…"><button class="ffile" title="Выбрать файл шрифта">Файл…</button></div>
+        <select class="fontlist" size="6"></select>
+      </div>
+      <div class="row"><label>Размер</label><input class="grow" type="range" data-key="timer_size" min="10" max="44" step="1"><span class="val"></span></div>
+      <label class="check"><input type="checkbox" data-key="timer_total"> Показывать общую длину</label>
+    </div>
+  </details>
+
+  <details open>
+    <summary>Экспорт</summary>
+    <div class="sec">
+      <div class="lbl">Разрешение</div>
+      <div class="seg" data-seg="resolution"><button data-v="1080p">1080p</button><button data-v="1440p">1440p (2K)</button><button data-v="4k">4K</button></div>
+      <div class="lbl">Кадров в секунду</div>
+      <div class="seg" data-seg="fps"><button data-v="24">24</button><button data-v="25">25</button><button data-v="30">30</button><button data-v="60">60</button></div>
+      <div class="lbl">Качество</div>
+      <div class="seg" data-seg="quality"><button data-v="15">Макс.</button><button data-v="18">Высокое</button><button data-v="21">Среднее</button><button data-v="24">Компактно</button></div>
+      <div class="lbl">Кодек</div>
+      <div class="seg" data-seg="codec"><button data-v="h264">H.264</button><button data-v="hevc">HEVC (H.265)</button></div>
+      <div class="note">H.264 открывается везде. HEVC даёт файл примерно на четверть меньше, YouTube принимает оба.</div>
+    </div>
+  </details>
+
+  <details>
+    <summary>Мои пресеты</summary>
+    <div class="sec">
+      <button id="savePreset">Сохранить текущий вид как пресет</button>
+      <div class="mypresets" id="myPresets"></div>
+      <div class="note">В пресет попадают цвета, шрифты, фон и настройки волны. Музыка, обложка и путь сохранения не попадают.</div>
+    </div>
+  </details>
+</aside>
+
+<section class="stage">
+  <div class="preview"><img id="prev" alt=""><div class="busy" id="busy">обновляю…</div></div>
+  <div class="scrub">
+    <span class="lbl">Кадр превью</span>
+    <input type="range" id="scrub" class="grow" min="0" max="1" step="0.001" value="0.35">
+    <span class="t" id="scrubT"></span>
+  </div>
+  <div class="warnings" id="warnings"></div>
+  <div class="actions">
+    <div class="top">
+      <button id="btnTest">▶ Тест 15 сек</button>
+      <button class="primary" id="btnRender">Рендер видео</button>
+      <div class="out" id="outText"></div>
+      <button id="btnOut">Куда сохранить…</button>
+    </div>
+    <div class="est" id="est"></div>
+    <div class="prog" id="prog">
+      <div class="bar"><div id="progBar"></div></div>
+      <div class="line"><span id="progStage"></span><span id="progStats"></span>
+        <span class="sp"><button id="btnCancel" class="danger">Остановить</button><button id="btnReveal" hidden>Открыть папку</button><button id="btnPlay" hidden>Смотреть</button></span></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<dialog id="dlg">
+  <video id="vid" controls playsinline></video>
+  <div class="row"><span class="note" style="margin-right:auto">Тестовый кусок 15 секунд, рендер теми же настройками, что и полное видео.</span><button id="dlgClose">Закрыть</button></div>
+</dialog>
+
+<script>
+const TOKEN = "__TOKEN__";
+let S = {}, DEF = {}, FONTS = [], MY = [], ENC = {};
+let audioState = {}, jobState = {};
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+
+async function api(path, body) {
+  const r = await fetch(path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: { "X-Token": TOKEN, "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+const fileUrl = p => "/file?token=" + TOKEN + "&path=" + encodeURIComponent(p);
+const baseName = p => (p || "").split(/[\\/]/).pop();
+const fmtDur = s => { s = Math.floor(s || 0); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = s % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(ss).padStart(2, "0"); };
+
+const PRESETS = [
+  { n: "Референс", bg_style: "linear", bg_top: "#0b6079", bg_bottom: "#7a0009", accent: "#1ea7cf", track_color: "#a3061a", track_opacity: 1, wave_color: "#ffffff", ring_color: "#38332a", vignette: 0.5 },
+  { n: "Original", bg_style: "radial", bg_top: "#a4a4a4", bg_bottom: "#f0f0f0", accent: "#4a4a4a", track_color: "#9a9a9a", track_opacity: 0.5, wave_color: "#8c8c8c", ring_color: "#5a5a5a", vignette: 0.3 },
+  { n: "Orange", bg_style: "radial", bg_top: "#f28c1e", bg_bottom: "#ececec", accent: "#f28c1e", track_color: "#f28c1e", track_opacity: 0.35, wave_color: "#9a9a9a", ring_color: "#f28c1e", vignette: 0.3 },
+  { n: "Red", bg_style: "radial", bg_top: "#e52222", bg_bottom: "#ececec", accent: "#e52222", track_color: "#e52222", track_opacity: 0.35, wave_color: "#9a9a9a", ring_color: "#e52222", vignette: 0.3 },
+  { n: "Green", bg_style: "radial", bg_top: "#2fa04e", bg_bottom: "#ececec", accent: "#2fa04e", track_color: "#2fa04e", track_opacity: 0.35, wave_color: "#9a9a9a", ring_color: "#2fa04e", vignette: 0.3 },
+  { n: "Blue", bg_style: "radial", bg_top: "#2b78ad", bg_bottom: "#ececec", accent: "#2b78ad", track_color: "#2b78ad", track_opacity: 0.35, wave_color: "#9a9a9a", ring_color: "#2b78ad", vignette: 0.3 },
+  { n: "Violet", bg_style: "radial", bg_top: "#6b46e0", bg_bottom: "#ececec", accent: "#6b46e0", track_color: "#6b46e0", track_opacity: 0.35, wave_color: "#9a9a9a", ring_color: "#6b46e0", vignette: 0.3 },
+  { n: "Pink", bg_style: "radial", bg_top: "#d94fd6", bg_bottom: "#efefef", accent: "#d94fd6", track_color: "#d94fd6", track_opacity: 0.35, wave_color: "#9a9a9a", ring_color: "#d94fd6", vignette: 0.3 },
+  { n: "Dark Orange", bg_style: "radial", bg_top: "#d8640f", bg_bottom: "#0e0805", accent: "#f28c1e", track_color: "#f28c1e", track_opacity: 0.3, wave_color: "#ffffff", ring_color: "#f28c1e", vignette: 0.45 },
+  { n: "Dark Red", bg_style: "radial", bg_top: "#c81414", bg_bottom: "#0e0404", accent: "#ff3b3b", track_color: "#ff3b3b", track_opacity: 0.3, wave_color: "#ffffff", ring_color: "#ff2a2a", vignette: 0.45 },
+  { n: "Dark Green", bg_style: "radial", bg_top: "#1e5c2b", bg_bottom: "#050b06", accent: "#35c45b", track_color: "#35c45b", track_opacity: 0.3, wave_color: "#ffffff", ring_color: "#2fb052", vignette: 0.45 },
+  { n: "Dark Blue", bg_style: "radial", bg_top: "#0d5f93", bg_bottom: "#040a12", accent: "#36a3e8", track_color: "#36a3e8", track_opacity: 0.3, wave_color: "#ffffff", ring_color: "#2d8fd0", vignette: 0.45 },
+  { n: "Dark Violet", bg_style: "radial", bg_top: "#4320b5", bg_bottom: "#070418", accent: "#8a63ff", track_color: "#8a63ff", track_opacity: 0.3, wave_color: "#ffffff", ring_color: "#7a4dff", vignette: 0.45 },
+  { n: "Dark Pink", bg_style: "radial", bg_top: "#b51ab5", bg_bottom: "#0f030f", accent: "#f04bf0", track_color: "#f04bf0", track_opacity: 0.3, wave_color: "#ffffff", ring_color: "#e03ce0", vignette: 0.45 },
+  { n: "Dark", bg_style: "radial", bg_top: "#3b3b3b", bg_bottom: "#0b0b0b", accent: "#bdbdbd", track_color: "#bdbdbd", track_opacity: 0.25, wave_color: "#ffffff", ring_color: "#5a5a5a", vignette: 0.45 },
+];
+const LOOK_KEYS = ["title_font", "title_size", "title_color", "title_shadow", "title_offset", "bg_mode", "bg_style", "bg_top", "bg_bottom",
+  "bg_blur", "bg_darken", "vignette", "grain", "accent", "track_color", "track_opacity", "wave_color", "wave_opacity", "ring_color",
+  "disc_color", "disc_sheen", "timer_font", "timer_size", "timer_total", "rpm", "spin_dir", "sticker", "shadow", "wave_bars", "wave_height",
+  "wave_sens", "wave_smooth"];
+
+// ---------- binding
+function fmtVal(key, v) {
+  if (["title_size", "title_offset", "wave_bars", "wave_height", "timer_size", "bg_blur"].includes(key)) return Math.round(v);
+  if (key === "rpm") return (+v).toFixed(1);
+  if (["bg_darken", "vignette", "grain", "title_shadow", "track_opacity", "wave_opacity", "shadow", "wave_smooth", "disc_sheen"].includes(key)) return Math.round(v * 100) + "%";
+  if (key === "wave_sens") return "×" + (+v).toFixed(2);
+  return v;
+}
+function render() {
+  $$("[data-key]").forEach(el => {
+    const k = el.dataset.key;
+    if (el.classList.contains("file")) return;
+    if (el.type === "checkbox") el.checked = !!S[k];
+    else if (document.activeElement !== el) el.value = S[k] ?? "";
+    const v = el.parentElement.querySelector(".val");
+    if (v && el.type === "range") v.textContent = fmtVal(k, S[k]);
+    const hx = el.parentElement.querySelector(".hex");
+    if (hx && el.type === "color") hx.textContent = (S[k] || "").toUpperCase();
+  });
+  $$("[data-seg]").forEach(seg => {
+    const k = seg.dataset.seg;
+    $$("button", seg).forEach(b => b.classList.toggle("on", String(S[k]) === b.dataset.v));
+  });
+  const m = S.bg_mode;
+  $(".mode-gradient").hidden = m !== "gradient";
+  $(".mode-image").hidden = m !== "image";
+  $(".mode-img-common").hidden = m === "gradient";
+  // files
+  $("#audioName").textContent = S.audio ? baseName(S.audio) : "Выбрать аудио…";
+  $("#coverName").textContent = S.cover ? baseName(S.cover) : "Обложка 1:1";
+  $("#coverIco").innerHTML = S.cover ? `<img src="${fileUrl(S.cover)}">` : "";
+  $("#bgName").textContent = S.bg_image ? baseName(S.bg_image) : "Выбрать картинку…";
+  $("#bgIco").innerHTML = S.bg_image ? `<img src="${fileUrl(S.bg_image)}">` : "";
+  $("#stickerName").textContent = S.sticker_path ? baseName(S.sticker_path) : "Наклейка";
+  $("#stickerIco").innerHTML = S.sticker_path ? `<img src="${fileUrl(S.sticker_path)}" style="object-fit:contain">` : "";
+  $("#outText").innerHTML = S.output ? "Сохранить в: <b>" + S.output.replace(/</g, "&lt;") + "</b>"
+    : "Сохранить в: <b>VinylRenderer\\output</b> (имя как у трека)";
+  renderFonts();
+  updateEstimate();
+}
+function changed(k, v, opts = {}) {
+  S[k] = v;
+  render();
+  save();
+  if (!opts.noPreview) schedulePreview();
+}
+$$("[data-key]").forEach(el => {
+  if (el.classList.contains("file")) return;
+  const ev = el.type === "range" || el.tagName === "TEXTAREA" || el.type === "color" ? "input" : "change";
+  el.addEventListener(ev, () => {
+    const k = el.dataset.key;
+    let v = el.type === "checkbox" ? el.checked : el.value;
+    if (el.type === "range") v = parseFloat(v);
+    changed(k, v);
+  });
+});
+$$("[data-seg]").forEach(seg => {
+  $$("button", seg).forEach(b => b.addEventListener("click", () => {
+    const k = seg.dataset.seg;
+    let v = b.dataset.v;
+    if (["fps", "quality", "spin_dir"].includes(k)) v = parseInt(v);
+    changed(k, v, { noPreview: ["quality", "codec"].includes(k) });
+  }));
+});
+$$(".file[data-pick]").forEach(el => el.addEventListener("click", async () => {
+  const k = el.dataset.key;
+  const r = await api("/api/pick", { kind: el.dataset.pick, current: S[k] || "" });
+  if (r.path) {
+    if (k === "bg_image") S.bg_mode = "image";
+    changed(k, r.path);
+  }
+}));
+$("#swapBg").addEventListener("click", () => { const t = S.bg_top; S.bg_top = S.bg_bottom; changed("bg_bottom", t); });
+$("#btnOut").addEventListener("click", async () => {
+  const r = await api("/api/pick", { kind: "output", current: S.output || "" });
+  if (r.path) changed("output", r.path, { noPreview: true });
+});
+
+let saveT = null;
+function save() {
+  clearTimeout(saveT);
+  saveT = setTimeout(() => api("/api/settings", { settings: S }).catch(() => {}), 300);
+}
+
+// ---------- fonts
+function renderFonts() {
+  $$(".fontbox").forEach(box => {
+    const key = box.dataset.font, sel = $("select", box), filt = $(".ffilter", box).value.trim().toLowerCase();
+    const list = FONTS.filter(f => !filt || f.name.toLowerCase().includes(filt));
+    const cur = S[key];
+    if (cur && !FONTS.some(f => f.path === cur)) list.unshift({ name: "Файл: " + baseName(cur), path: cur });
+    const sig = filt + "|" + list.length + "|" + cur;
+    if (sel.dataset.sig === sig) return;
+    sel.dataset.sig = sig;
+    sel.innerHTML = "";
+    for (const f of list) {
+      const o = document.createElement("option");
+      o.value = f.path; o.textContent = f.name;
+      if (f.path === cur) o.selected = true;
+      sel.appendChild(o);
+    }
+    const o = sel.querySelector("option:checked");
+    if (o) o.scrollIntoView({ block: "nearest" });
+  });
+}
+$$(".fontbox").forEach(box => {
+  const key = box.dataset.font;
+  $(".ffilter", box).addEventListener("input", renderFonts);
+  $("select", box).addEventListener("change", e => changed(key, e.target.value));
+  $(".ffile", box).addEventListener("click", async () => {
+    const r = await api("/api/pick", { kind: "font", current: S[key] || "" });
+    if (r.path) changed(key, r.path);
+  });
+});
+
+// ---------- presets
+function presetTile(p, onClick, title) {
+  const b = document.createElement("button");
+  b.className = "preset";
+  b.title = title || p.n;
+  const g = p.bg_style === "radial"
+    ? `radial-gradient(120% 110% at 50% -10%, ${p.bg_top}, ${p.bg_bottom})`
+    : `linear-gradient(${p.bg_top}, ${p.bg_bottom})`;
+  b.style.background = g;
+  b.innerHTML = `<i style="border-color:${p.ring_color}"></i><span>${p.n}</span>`;
+  b.addEventListener("click", onClick);
+  return b;
+}
+function renderPresets() {
+  const box = $("#presets");
+  box.innerHTML = "";
+  PRESETS.forEach(p => box.appendChild(presetTile(p, () => {
+    Object.assign(S, p); delete S.n; S.bg_mode = "gradient"; changed("bg_mode", "gradient");
+  })));
+  const my = $("#myPresets");
+  my.innerHTML = MY.length ? "" : '<div class="note">Пока пусто.</div>';
+  MY.forEach((p, i) => {
+    const row = document.createElement("div");
+    row.className = "item";
+    const a = document.createElement("button");
+    a.textContent = p.name;
+    a.addEventListener("click", () => { Object.assign(S, p.look); changed("bg_mode", S.bg_mode); });
+    const d = document.createElement("button");
+    d.textContent = "✕"; d.title = "Удалить";
+    d.addEventListener("click", () => { MY.splice(i, 1); api("/api/presets", { presets: MY }); renderPresets(); });
+    row.append(a, d);
+    my.appendChild(row);
+  });
+}
+$("#savePreset").addEventListener("click", () => {
+  const name = prompt("Название пресета:", "Мой пресет " + (MY.length + 1));
+  if (!name) return;
+  const look = {};
+  LOOK_KEYS.forEach(k => look[k] = S[k]);
+  MY.push({ name, look });
+  api("/api/presets", { presets: MY });
+  renderPresets();
+});
+
+// ---------- preview
+let pvTimer = null, pvBusy = false, pvAgain = false;
+function schedulePreview() { clearTimeout(pvTimer); pvTimer = setTimeout(doPreview, 160); }
+async function doPreview() {
+  if (pvBusy) { pvAgain = true; return; }
+  pvBusy = true; $("#busy").classList.add("on");
+  try {
+    const r = await api("/api/preview", { settings: S, t: parseFloat($("#scrub").value), h: 1080 });
+    $("#prev").src = r.image;
+    const tw = $("#titleWarn"), mw = r.missing || {};
+    tw.hidden = !(mw.title && mw.title.length);
+    tw.textContent = "В этом шрифте нет символов: " + (mw.title || []).join(" ") + ". Выберите шрифт с кириллицей (например Arial, Montserrat, Bebas Neue Cyrillic).";
+    const tm = $("#timerWarn");
+    tm.hidden = !(mw.timer && mw.timer.length);
+    tm.textContent = "В шрифте таймера нет цифр: " + (mw.timer || []).join(" ");
+    setWarn("prev", "");
+  } catch (e) {
+    setWarn("prev", "Ошибка превью: " + e.message, true);
+  } finally {
+    pvBusy = false; $("#busy").classList.remove("on");
+    if (pvAgain) { pvAgain = false; doPreview(); }
+  }
+}
+$("#scrub").addEventListener("input", () => { updateScrub(); schedulePreview(); });
+function updateScrub() {
+  const d = audioState.duration;
+  $("#scrubT").textContent = d ? fmtDur(parseFloat($("#scrub").value) * d) + " / " + fmtDur(d) : Math.round($("#scrub").value * 100) + "%";
+}
+const warnMap = {};
+function setWarn(id, text, err) {
+  if (text) warnMap[id] = { text, err }; else delete warnMap[id];
+  $("#warnings").innerHTML = Object.values(warnMap).map(w => `<div class="note ${w.err ? "warn" : ""}">${w.text}</div>`).join("");
+}
+
+// ---------- estimate
+function updateEstimate() {
+  const d = audioState.duration;
+  if (!d) { $("#est").textContent = ""; return; }
+  const gpu = ENC.h264_nvenc && ENC.cuda;
+  const speed1440 = gpu ? 560 : (ENC.h264_nvenc || ENC.h264_qsv ? 260 : 60);
+  const px = { "1080p": 0.5625, "1440p": 1, "4k": 2.25 }[S.resolution] || 1;
+  const speed = speed1440 / Math.pow(px, 0.85);
+  const frames = d * S.fps;
+  const sec = frames / speed + 5 + d / 400;
+  // measured at 1440p30, QP 18: 0.9 Mbit/s without grain, 2.6 with grain 35%
+  let mbps = (0.9 + 1.7 * Math.min(1.5, (S.grain || 0) / 0.35)) * Math.pow(px, 0.8)
+    * Math.pow(0.6, (S.quality - 18) / 3) * Math.pow(S.fps / 30, 0.6);
+  if (S.codec === "hevc") mbps *= 0.75;
+  const gb = mbps * d / 8 / 1000;
+  $("#est").textContent = `Длительность ${fmtDur(d)} · примерное время рендера ~${sec < 90 ? Math.round(sec) + " сек" : Math.round(sec / 60) + " мин"} · файл ≈ ${gb < 1 ? Math.round(gb * 1000) + " МБ" : gb.toFixed(1) + " ГБ"}`;
+}
+
+// ---------- jobs
+$("#btnRender").addEventListener("click", () => startJob(false));
+$("#btnTest").addEventListener("click", () => startJob(true));
+$("#btnCancel").addEventListener("click", () => api("/api/cancel", {}));
+$("#btnReveal").addEventListener("click", () => api("/api/reveal", { path: jobState.output || "" }));
+$("#btnPlay").addEventListener("click", () => {
+  if (jobState.kind === "test") showVideo(jobState.output); else api("/api/open", { path: jobState.output || "" });
+});
+$("#dlgClose").addEventListener("click", () => { $("#vid").pause(); $("#dlg").close(); });
+function showVideo(p) {
+  const v = $("#vid");
+  v.src = fileUrl(p) + "&v=" + Date.now();
+  $("#dlg").showModal();
+  v.play().catch(() => {});
+}
+async function startJob(test) {
+  if (!S.audio) { setWarn("job", "Сначала выберите аудиофайл.", true); return; }
+  try {
+    clearTimeout(saveT);
+    await api("/api/settings", { settings: S });
+    await api("/api/render", { settings: S, test, t: parseFloat($("#scrub").value) });
+    setWarn("job", "");
+    lastShown = null;
+    poll();
+  } catch (e) { setWarn("job", e.message, true); }
+}
+const STAGES = { starting: "Запуск…", analyze: "Анализ аудио", build: "Подготовка кадра", render: "Рендер", verify: "Проверка кадров", done: "Готово", error: "Ошибка", cancelled: "Остановлено" };
+let lastShown = null;
+function renderJob() {
+  const j = jobState, running = ["starting", "analyze", "build", "render", "verify"].includes(j.stage);
+  $("#prog").classList.toggle("on", j.stage !== "idle");
+  $("#btnRender").disabled = running; $("#btnTest").disabled = running;
+  $("#btnCancel").hidden = !running;
+  $("#btnReveal").hidden = j.stage !== "done";
+  $("#btnPlay").hidden = j.stage !== "done";
+  $("#btnPlay").textContent = j.kind === "test" ? "Смотреть тест" : "Открыть видео";
+  const what = j.kind === "test" ? " (тест 15 сек)" : "";
+  $("#progStage").innerHTML = `<b>${STAGES[j.stage] || j.stage}${what}</b>`;
+  let pct = j.stage === "render" ? j.progress : j.stage === "done" ? 1 : 0;
+  $("#progBar").style.width = (pct * 100).toFixed(1) + "%";
+  const i = j.info || {};
+  let st = "";
+  if (j.stage === "analyze") st = Math.round(j.progress * 100) + "%";
+  if (j.stage === "build" || j.stage === "verify") st = Math.round(j.progress * 100) + "%";
+  if (j.stage === "render") st = `${(j.progress * 100).toFixed(1)}% · ${Math.round(i.fps || 0)} кадр/с · прошло ${fmtDur(i.elapsed || 0)} · осталось ~${fmtDur(i.eta || 0)}` + (i.safe ? " · надёжный режим" : "");
+  if (j.stage === "done") st = `за ${fmtDur(i.seconds || 0)} · ${Math.round(i.render_fps || 0)} кадр/с · ${i.encoder || ""}${i.verified ? " · кадры проверены ✓" : ""} · ${baseName(j.output)}`;
+  if (j.stage === "error") st = (j.error || "").replace(/</g, "&lt;");
+  $("#progStats").innerHTML = st;
+  if (j.stage === "done" && j.kind === "test" && lastShown !== j.id) { lastShown = j.id; showVideo(j.output); }
+  if (j.stage === "done") lastShown = j.id;
+}
+let pollT = null;
+async function poll() {
+  clearTimeout(pollT);
+  try {
+    const r = await api("/api/status");
+    const prevAudio = audioState.stage;
+    jobState = r.job; audioState = r.audio;
+    renderJob();
+    renderAudio();
+    if (prevAudio === "running" && audioState.stage === "done") schedulePreview();
+  } catch (e) {}
+  const running = ["starting", "analyze", "build", "render", "verify"].includes(jobState.stage) || audioState.stage === "running";
+  pollT = setTimeout(poll, running ? 500 : 2000);
+}
+function renderAudio() {
+  const a = audioState;
+  let sub = "mp3, wav, flac, m4a…";
+  if (S.audio) {
+    if (a.stage === "running") sub = "Анализ звука… " + Math.round(a.progress * 100) + "%";
+    else if (a.stage === "done") sub = "Длительность " + fmtDur(a.duration) + " · готово";
+    else if (a.stage === "error") sub = "Ошибка: " + a.error;
+  }
+  $("#audioSub").textContent = sub;
+  updateScrub();
+  updateEstimate();
+}
+
+// ---------- init
+(async () => {
+  const st = await api("/api/state");
+  S = st.settings; DEF = st.defaults; MY = st.presets || []; jobState = st.job; audioState = st.audio;
+  if (jobState.stage === "done") lastShown = jobState.id;   // don't pop up an old test clip on reload
+  render(); renderPresets(); renderJob(); renderAudio();
+  doPreview();
+  poll();
+  api("/api/fonts").then(f => { FONTS = f; sel_sig_reset(); renderFonts(); });
+  const encPoll = async () => {
+    const s = await api("/api/state");
+    ENC = s.encoders || {};
+    if (!Object.keys(ENC).length) { setTimeout(encPoll, 800); return; }
+    const gpu = ENC.h264_nvenc && ENC.cuda;
+    $("#encDot").className = "dot " + (gpu ? "ok" : "warn");
+    if (ENC.error) { $("#encText").textContent = "ffmpeg не найден"; setWarn("ffmpeg", ENC.error, true); return; }
+    $("#encText").textContent = gpu ? "NVIDIA: рендер и кодирование на видеокарте"
+      : ENC.h264_nvenc ? "NVIDIA NVENC (без CUDA)" : ENC.h264_qsv ? "Intel Quick Sync" : ENC.h264_amf ? "AMD AMF" : "Кодирование на процессоре (медленнее)";
+    updateEstimate();
+  };
+  encPoll();
+})();
+function sel_sig_reset() { $$(".fontlist").forEach(s => s.dataset.sig = ""); }
+</script>
+</body>
+</html>

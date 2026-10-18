@@ -1,0 +1,13 @@
+# personal settings and presets (contain local file paths)
+settings.json
+my_presets.json
+
+# temporary files and rendered videos
+cache/
+output/
+__pycache__/
+*.pyc
+*.log
+
+# optional local ffmpeg binaries
+ffmpeg/
